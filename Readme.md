@@ -2,14 +2,16 @@
 
 # Getting Started
 
-**Eventa Infrastructure Ready Event-Sourcing and CQRS, Saga Orchestration, High Concurrency Supportive**
+**Eventa Infrastructure Ready Event-Sourcing and Command Query Responsibility Segregation (CQRS)**
 
 ## Overview
 
 Eventa offers a robust framework for implementing Command Query Responsibility Segregation (CQRS) and Event Sourcing in
 Java applications. It's designed to separate command handling (write operations) from query handling (read operations),
 capturing all changes to the application state as a sequence of events. This approach ensures a reliable audit trail and
-state reconstruction.
+state reconstruction. 
+
+Sample : [Event-Sourcing & CQRS](https://github.com/zaxxio/event-driven-architecture)
 
 ## Maven Dependency
 
@@ -317,7 +319,7 @@ public class AccountCommandInterceptor implements CommandInterceptor {
     }
 }
 ```
-# Infrastructure dependency
+## Infrastructure dependency
 ```yaml
 eventa:
   event-bus: BaseEvent
