@@ -64,4 +64,8 @@
         </dependency>
     </dependencies>
 
+    <build>
+        <finalName>spring-boot-starter-eventa</finalName>
+    </build>
+
 </project>
