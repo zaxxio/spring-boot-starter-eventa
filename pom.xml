@@ -10,7 +10,7 @@
     </parent>
     <groupId>org.wsd</groupId>
     <artifactId>spring-boot-starter-eventa</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.1</version>
     <name>spring-boot-starter-eventa</name>
     <description>
         Spring Boot Starter Eventa.
