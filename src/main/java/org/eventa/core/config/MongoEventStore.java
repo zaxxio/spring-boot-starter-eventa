@@ -7,6 +7,7 @@ import org.eventa.core.eventstore.EventModel;
 import org.eventa.core.eventstore.EventStore;
 import org.eventa.core.producer.EventProducer;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.ConcurrencyFailureException;
 
 import java.util.Comparator;
@@ -24,6 +25,8 @@ public class MongoEventStore implements EventStore {
 
     @Autowired
     private EventModelRepository eventModelRepository;
+    @Value("${eventa.event-bus:BaseEvent}")
+    private String eventBus;
     @Autowired
     private EventProducer eventProducer;
     private ReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
@@ -55,7 +58,7 @@ public class MongoEventStore implements EventStore {
                         .build();
                 var persistedEvent = eventModelRepository.save(eventModel);
                 if (!persistedEvent.getId().isEmpty()) {
-                    return eventProducer.produceEvent("BaseEvent", event);
+                    return eventProducer.produceEvent(eventBus, event);
                 }
             }
         } catch (Exception e) {
@@ -76,7 +79,7 @@ public class MongoEventStore implements EventStore {
     @Override
     public List<BaseEvent> getEvents() {
         List<BaseEvent> eventStream = this.eventModelRepository.findAll().stream().map(EventModel::getBaseEvent).toList();
-        if (eventStream.isEmpty()){
+        if (eventStream.isEmpty()) {
             log.error("Could not retrieve events from the events store.'");
         }
         return eventStream;
