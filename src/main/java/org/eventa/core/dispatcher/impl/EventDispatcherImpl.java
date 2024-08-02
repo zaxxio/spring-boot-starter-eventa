@@ -2,6 +2,7 @@ package org.eventa.core.dispatcher.impl;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
+import org.eventa.core.dispatcher.CommandDispatcher;
 import org.eventa.core.dispatcher.EventDispatcher;
 import org.eventa.core.events.BaseEvent;
 import org.eventa.core.registry.EventHandlerRegistry;
@@ -17,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 public class EventDispatcherImpl implements EventDispatcher {
     private final EventHandlerRegistry eventHandlerRegistry;
     private final ApplicationContext applicationContext;
+    private final CommandDispatcher commandDispatcher;
 
     @Override
     public void dispatch(BaseEvent baseEvent) {
@@ -24,6 +26,7 @@ public class EventDispatcherImpl implements EventDispatcher {
             CompletableFuture.runAsync(() -> {
                 try {
                     handleEvent(baseEvent);
+                    commandDispatcher.acknowledgeCommand(baseEvent.getMessageId());
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

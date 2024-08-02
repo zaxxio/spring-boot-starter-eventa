@@ -21,8 +21,12 @@ import org.springframework.stereotype.Component;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.sql.Time;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
@@ -40,10 +44,15 @@ public class CommandDispatcherImpl implements CommandDispatcher {
     private final ReentrantReadWriteLock readWriteLock = new ReentrantReadWriteLock(true);
     private final Lock writeLock = readWriteLock.writeLock();
     private final Lock readLock = readWriteLock.readLock();
+    private static final int timeout = 10;
+    private final ConcurrentHashMap<UUID, CountDownLatch> latchMap = new ConcurrentHashMap<>();
 
 
     @Override
     public <T extends BaseCommand> void dispatch(T baseCommand, BiConsumer<CommandMessage<T>, CommandResultMessage<?>> callback) throws Exception {
+        final CountDownLatch countDownLatch = new CountDownLatch(1);
+        UUID commandEventId = baseCommand.getMessageId();
+        latchMap.put(commandEventId, countDownLatch);
         try {
             this.writeLock.lock();
             final UUID routingKey = extractRoutingKey(baseCommand);
@@ -59,18 +68,43 @@ public class CommandDispatcherImpl implements CommandDispatcher {
                 final String key = eventStore.saveEvents(aggregateRoot.getAggregateIdentifier(), aggregateRoot.getUncommittedChanges(), aggregateRoot.getVersion() - 1, registryMethodHandler.getDeclaringClass().getName(), false);
                 aggregateRoot.markChangesAsCommitted();
                 callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(key));
+                waitForAcknowledgement(commandEventId, countDownLatch, callback, baseCommand, key);
             } else {
                 final Constructor<?> registryCommandHandler = commandHandler.getCommandHandlerConstructor();
                 final AggregateRoot aggregateRoot = context.getBean(registryCommandHandler.getDeclaringClass().asSubclass(AggregateRoot.class), baseCommand);
                 final String key = eventStore.saveEvents(aggregateRoot.getAggregateIdentifier(), aggregateRoot.getUncommittedChanges(), aggregateRoot.getVersion() - 1, registryCommandHandler.getDeclaringClass().getName(), true);
                 aggregateRoot.markChangesAsCommitted();
                 callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(key));
+                waitForAcknowledgement(commandEventId, countDownLatch, callback, baseCommand, key);
             }
         } catch (Exception ex) {
             log.error(ex.getCause());
             callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(ex.getCause()));
         } finally {
             this.writeLock.unlock();
+        }
+    }
+
+    private <T extends BaseCommand> void waitForAcknowledgement(UUID commandEventId, CountDownLatch countDownLatch,
+                                                                BiConsumer<CommandMessage<T>, CommandResultMessage<?>> callback, T baseCommand, String key) {
+
+        try {
+            if (countDownLatch.await(timeout, TimeUnit.SECONDS)) {
+                callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(key));
+            } else {
+                callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(new Exception("No acknowledgment received")));
+            }
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(e));
+        }
+
+    }
+
+    public void acknowledgeCommand(UUID commandId) {
+        CountDownLatch latch = latchMap.get(commandId);
+        if (latch != null) {
+            latch.countDown();
         }
     }
 
