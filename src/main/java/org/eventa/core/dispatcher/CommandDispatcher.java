@@ -10,5 +10,5 @@ import java.util.function.BiConsumer;
 public interface CommandDispatcher {
 
     <T extends BaseCommand> void dispatch(T baseCommand, BiConsumer<CommandMessage<T>, CommandResultMessage<?>> callback) throws Exception;
-    void acknowledgeCommand(UUID commandId);
+    void acknowledgeCommand(UUID commandId) throws InterruptedException;
 }

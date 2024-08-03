@@ -18,7 +18,6 @@ import java.util.concurrent.CompletableFuture;
 public class EventDispatcherImpl implements EventDispatcher {
     private final EventHandlerRegistry eventHandlerRegistry;
     private final ApplicationContext applicationContext;
-    private final CommandDispatcher commandDispatcher;
 
     @Override
     public void dispatch(BaseEvent baseEvent) {
@@ -26,7 +25,6 @@ public class EventDispatcherImpl implements EventDispatcher {
             CompletableFuture.runAsync(() -> {
                 try {
                     handleEvent(baseEvent);
-                    commandDispatcher.acknowledgeCommand(baseEvent.getMessageId());
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

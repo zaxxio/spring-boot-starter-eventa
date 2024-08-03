@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.log4j.Log4j2;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.eventa.core.consumer.EventConsumer;
+import org.eventa.core.dispatcher.CommandDispatcher;
 import org.eventa.core.dispatcher.EventDispatcher;
 import org.eventa.core.events.BaseEvent;
 import org.eventa.core.registry.EventHandlerRegistry;
@@ -21,6 +22,7 @@ public class KafkaEventConsumer implements EventConsumer {
 
     private final EventDispatcher eventDispatcher;
     private final EventHandlerRegistry eventHandlerRegistry;
+    private final CommandDispatcher commandDispatcher;
 
     @Override
     public void consume(@Payload BaseEvent baseEvent, Acknowledgment acknowledgment) throws Exception {
@@ -28,10 +30,12 @@ public class KafkaEventConsumer implements EventConsumer {
         if (eventHandlerRegistry.isRegistered(baseEvent.getClass())) {
             try {
                 eventDispatcher.dispatch(baseEvent);
+                commandDispatcher.acknowledgeCommand(baseEvent.getMessageId());
                 log.debug("Processed Event : {}", baseEvent);
                 acknowledgment.acknowledge();
             } catch (Exception ex) {
                 log.debug("Error Processing Event : {}, Error Message : {}", baseEvent, ex.getMessage());
+                commandDispatcher.acknowledgeCommand(baseEvent.getMessageId());
             }
         }
     }

@@ -8,6 +8,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-interface EventModelRepository extends MongoRepository<EventModel, String> {
+public interface EventModelRepository extends MongoRepository<EventModel, String> {
     List<EventModel> findByAggregateIdentifier(UUID aggregateIdentifier);
 }

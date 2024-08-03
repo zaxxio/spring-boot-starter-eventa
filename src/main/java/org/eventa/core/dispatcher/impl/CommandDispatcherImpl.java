@@ -45,14 +45,13 @@ public class CommandDispatcherImpl implements CommandDispatcher {
     private final Lock writeLock = readWriteLock.writeLock();
     private final Lock readLock = readWriteLock.readLock();
     private static final int timeout = 10;
-    private final ConcurrentHashMap<UUID, CountDownLatch> latchMap = new ConcurrentHashMap<>();
-
+    final CountDownLatch countDownLatch = new CountDownLatch(1);
 
     @Override
     public <T extends BaseCommand> void dispatch(T baseCommand, BiConsumer<CommandMessage<T>, CommandResultMessage<?>> callback) throws Exception {
-        final CountDownLatch countDownLatch = new CountDownLatch(1);
+
         UUID commandEventId = baseCommand.getMessageId();
-        latchMap.put(commandEventId, countDownLatch);
+
         try {
             this.writeLock.lock();
             final UUID routingKey = extractRoutingKey(baseCommand);
@@ -65,9 +64,11 @@ public class CommandDispatcherImpl implements CommandDispatcher {
                 final List<BaseEvent> historicalEvents = eventStore.getEvents(baseCommand.getMessageId());
                 aggregateRoot.replayEvents(historicalEvents);
                 registryMethodHandler.invoke(aggregateRoot, baseCommand);
+                // ==========
                 final String key = eventStore.saveEvents(aggregateRoot.getAggregateIdentifier(), aggregateRoot.getUncommittedChanges(), aggregateRoot.getVersion() - 1, registryMethodHandler.getDeclaringClass().getName(), false);
                 aggregateRoot.markChangesAsCommitted();
                 callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(key));
+                // ==========
                 waitForAcknowledgement(commandEventId, countDownLatch, callback, baseCommand, key);
             } else {
                 final Constructor<?> registryCommandHandler = commandHandler.getCommandHandlerConstructor();
@@ -96,16 +97,13 @@ public class CommandDispatcherImpl implements CommandDispatcher {
             }
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
-            callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(e));
+            callback.accept(new CommandMessage<>(baseCommand), new CommandResultMessage<>(ex));
         }
 
     }
 
-    public void acknowledgeCommand(UUID commandId) {
-        CountDownLatch latch = latchMap.get(commandId);
-        if (latch != null) {
-            latch.countDown();
-        }
+    public void acknowledgeCommand(UUID commandId) throws InterruptedException {
+        countDownLatch.countDown();
     }
 
     private synchronized <T extends BaseCommand> UUID extractRoutingKey(T command) throws IllegalAccessException {
